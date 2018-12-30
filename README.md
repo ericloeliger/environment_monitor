@@ -17,9 +17,10 @@ This script was designed to be run in Production on a Linux machine (Raspberry P
 
 Non-standard Python Modules Required:
 - requests (for making API calls)
-- pymysql (for MySQL DB interraction)
+- pymysql (for MySQL DB interraction, optional)
+- AdafruitIO (sudo pip3 install adafruit-io)
 
-MySQL database installed
+MySQL database installed (optional)
 
 .ini Properties file
 

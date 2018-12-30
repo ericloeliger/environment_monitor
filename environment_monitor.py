@@ -8,6 +8,8 @@
 # 12/30/17 - Changed to storing all meter readings in a single row, improved exception logging
 # 12/31/17 - Added sending to adafruit IO
 # 9/5/18 - Added support for multiple local sensors
+# 12/29/18 - Disabled the SQL when moved to pi3_194_v2, added AdafruitIO user in Client creation
+# 12/30/18 - Moved SQL parts to configuration
 
 # To Do
 
@@ -27,6 +29,10 @@ config.read('//home/pi/Python_Scripts/environment_monitor/environment_monitor_pr
 # DEBUG switch  0 = Production, 1 = debug
 #debugMode = 1
 debugMode = int(config['general']['DebugMode'])
+
+# load whether or not script will write to local MySQL DB
+enable_logging_to_db = int(config['general']['EnableLoggingToDatabase'])
+
 
 # Logger configuration
 log_name = config['logger.config']['LogName']
@@ -54,8 +60,12 @@ if debugMode == 1:
 # ######### Main Program ############
 try:
     logger.info("########## Begin environment_monitor.py ##########")
-    logger.info("Opening DB connection")
-    sql.openDBConnection()
+
+    if enable_logging_to_db == 1:
+        logger.info("Opening DB connection")
+        sql.openDBConnection()
+    else:
+        logger.info("Logging to DB disabled")
 
     # call NOAA API to get outside temp
     noaa_base_url = config['noaa.api.config']['BaseURL']
@@ -89,7 +99,7 @@ try:
 
 
     # setup to adafruit IO feed
-    aio = Client(config['adafruit.io']['ClientKey'])
+    aio = Client(config['adafruit.io']['ClientUser'],config['adafruit.io']['ClientKey'])
 
     # initialize adafruit dict
     # define feed dictionary
@@ -131,16 +141,17 @@ try:
         logger.debug("Parameter 3 =%s" % humidity)
 
         # save values in DB
-        # insertMeterReading - columns: id (auto), type_code, value, sensor_id, timestamp (auto)
-        # insertMeterReadings - columns: id (auto), sensor_id, indoor_temperature, indoor_humidity, outdoor_temperature, timestamp (auto)
-        insert_dict = {}
-        insert_dict['sensor_id'] = sensor_id
-        insert_dict['indoor_temperature'] = temperature
-        insert_dict['indoor_humidity'] = humidity
-        insert_dict['outdoor_temperature'] = outdoor_temperature
-        insert_dict['outdoor_timestamp'] = outdoor_timestamp
-        result = sql.insertMeterReadings(insert_dict)
-        logger.info("Insert meter readings result: %s" % result)
+        if enable_logging_to_db == 1:
+            # insertMeterReading - columns: id (auto), type_code, value, sensor_id, timestamp (auto)
+            # insertMeterReadings - columns: id (auto), sensor_id, indoor_temperature, indoor_humidity, outdoor_temperature, timestamp (auto)
+            insert_dict = {}
+            insert_dict['sensor_id'] = sensor_id
+            insert_dict['indoor_temperature'] = temperature
+            insert_dict['indoor_humidity'] = humidity
+            insert_dict['outdoor_temperature'] = outdoor_temperature
+            insert_dict['outdoor_timestamp'] = outdoor_timestamp
+            result = sql.insertMeterReadings(insert_dict)
+            logger.info("Insert meter readings result: %s" % result)
 
         # build adafruit dict
         temp_key = 'indoorTemperature%s' % current_sensor
@@ -175,6 +186,7 @@ except Exception as e:
     logger.exception("Exception occured: %s" % e)
 
 finally:
-    logger.info("Closing DB connection")
-    sql.closeDBConnection()
+    if enable_logging_to_db == 1:
+        logger.info("Closing DB connection")
+        sql.closeDBConnection()
     logger.info("########## End environment_monitor.py ##########")
